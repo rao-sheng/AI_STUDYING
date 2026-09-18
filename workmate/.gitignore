@@ -1,0 +1,29 @@
+# Local credentials (keep the empty configuration template)
+.env
+.env.*
+!.env.example
+
+# Python environments and generated files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local databases, journals and vector-cache backups
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+knowledge_vectors*.json
+
+# Local editor / assistant scratch files
+tempCodeRunnerFile.py
+.claude/

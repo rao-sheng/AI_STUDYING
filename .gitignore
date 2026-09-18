@@ -1,0 +1,28 @@
+# ============================================================
+# 仓库根目录（E:/AI_STUDYING）的 .gitignore
+# 本仓库目前只想管理 Num2/workmate 这一个项目，
+# 其余学习项目 / 生成物一律排除，避免误提交。
+# ============================================================
+
+# 其他学习项目（各有自己的 .git，不要当作子模块或普通文件提交）
+/fastapi_learning/
+
+# Python 环境与生成物
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 密钥
+.env
+.env.*
+!.env.example
+
+# 本地数据库与向量缓存
+*.db
+*.sqlite
+*.sqlite3
+knowledge_vectors*.json

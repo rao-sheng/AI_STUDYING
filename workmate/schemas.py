@@ -7,6 +7,11 @@ class TaskStatus(str,Enum):
     IN_PROGRESS = "in_progress"
     DONE = "done"
 
+class AskResponse(BaseModel):
+    question:str=Field(min_length=1,max_length=2000)
+
+
+    
 class TaskCreate(BaseModel):
     title:str=Field(...,min_length=1,max_length=80)
     description:str|None=Field(default=None,max_length=500)
@@ -22,5 +27,10 @@ class TaskUpdate(BaseModel):
     description:str|None=Field(default=None,max_length=500)
     status:TaskStatus|None=None
 
+class ChatRequest(BaseModel):
+    conversation_id:str=Field(min_length=1,max_length=100)
+    question:str=Field(min_length=1,max_length=2000)
 
-
+class ChatResponse(BaseModel):
+    answer:str
+    conversation_id:str
