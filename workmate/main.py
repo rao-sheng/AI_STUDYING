@@ -1,13 +1,14 @@
-from fastapi import FastAPI,status,HTTPException,Query,Response
-from schemas import AskResponse,TaskCreate,TaskResponse,TaskUpdate,TaskStatus,ChatRequest,ChatResponse
-from datetime import datetime,timezone
-from store import get_task,get_connection,create_task,init_db,list_tasks,update_task,delete_task
+from fastapi import FastAPI, HTTPException
+from schemas import AskResponse, ChatRequest, ChatResponse
+from store import init_db
 from contextlib import asynccontextmanager
-from llm_practice import ask_model
 import httpx
 from chat_service import reply_with_history
 from rag_practice import load_or_build_chunks,answer_question
 from tool_practice import run_agent
+from app.api.health import router as health_router
+from app.api.tasks import router as tasks_router
+from app.api.meta import router as meta_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -20,75 +21,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-@app.get("/health")
-def get_health():
-    return {"status":"ok"}
-
-@app.post("/tasks",status_code=status.HTTP_201_CREATED,response_model=TaskResponse)
-def create_tasks(task:TaskCreate):
-    
-    now=datetime.now(timezone.utc).isoformat()
-    return create_task(task.title, task.description,
-                 task.status.value, now, now)
-    
-@app.get("/tasks/{task_id}",response_model=TaskResponse)
-def get_task_byid(task_id:int):
-    task=get_task(task_id)
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Task not found",
-        )
-    return task 
-
-@app.get("/tasks",response_model=list[TaskResponse])
-def get_tasks(task_status:TaskStatus|None=Query(default=None,alias="status")):
-    status_value = None if task_status is None else task_status.value
-    return list_tasks(status_value)
-
-@app.delete("/tasks/{task_id}",
-            status_code=status.HTTP_204_NO_CONTENT)
-def delete_task_by_id(task_id:int):
-    deleted=delete_task(task_id)
-   
-    if  not deleted:
-        raise HTTPException(status_code=404,
-                            detail="Task not found")
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-@app.patch("/tasks/{task_id}", response_model=TaskResponse)
-def update_task_by_id(task_id: int, task: TaskUpdate):
-    update_data = task.model_dump(exclude_unset=True)
-
-    if not update_data:
-        raise HTTPException(
-            status_code=400,
-            detail="At least one field must be provided",
-        )
-
-    if "title" in update_data and update_data["title"] is None:
-        raise HTTPException(
-            status_code=422,
-            detail="title cannot be null",
-        )
-
-    if "status" in update_data and update_data["status"] is None:
-        raise HTTPException(
-            status_code=422,
-            detail="status cannot be null",
-        )
-    #这里进行了一个格式转换， TaskStatus.DONE  →  "done"
-    if "status" in update_data:
-        update_data["status"] = update_data["status"].value
-
-    now = datetime.now(timezone.utc).isoformat()
-    updated_task = update_task(task_id, update_data, now)
-
-    if updated_task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    return updated_task
-
+app.include_router(health_router)
+app.include_router(tasks_router)
+app.include_router(meta_router)
 
 @app.post("/ask")
 def answer_endpoint(body:AskResponse):
