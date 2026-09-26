@@ -1,0 +1,287 @@
+:root {
+    --page-bg: #f4f7fb;
+    --surface: #ffffff;
+    --text: #172033;
+    --muted: #667085;
+    --border: #d9e1ee;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --assistant-bg: #eef4ff;
+    --danger: #b42318;
+    --shadow: 0 16px 40px rgba(26, 40, 68, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--page-bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+
+button,
+textarea {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+.app-shell {
+    width: min(100% - 32px, 860px);
+    margin: 40px auto;
+}
+
+.page-header {
+    margin-bottom: 24px;
+}
+
+.eyebrow {
+    margin: 0 0 8px;
+    color: var(--primary);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+h1,
+h2,
+p {
+    margin-top: 0;
+}
+
+h1 {
+    margin-bottom: 8px;
+    font-size: clamp(28px, 5vw, 40px);
+}
+
+.subtitle {
+    margin-bottom: 0;
+    color: var(--muted);
+}
+
+.mode-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.mode-button {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 9px 16px;
+    background: var(--surface);
+    color: var(--muted);
+}
+
+.mode-button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.mode-button.is-active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.workspace {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.mode-intro {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+}
+
+.mode-intro>p:first-child {
+    margin-bottom: 8px;
+    color: var(--primary);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.mode-intro h2 {
+    margin-bottom: 8px;
+    font-size: 22px;
+}
+
+.mode-intro p:last-child {
+    margin-bottom: 0;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.example-area {
+    margin: 20px 0;
+}
+
+.example-area>p {
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.example-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.example-button {
+    border: 1px solid #cbd9f7;
+    border-radius: 10px;
+    padding: 8px 12px;
+    background: #f7faff;
+    color: #315aa6;
+    font-size: 14px;
+    text-align: left;
+}
+
+.example-button:hover {
+    background: #eaf1ff;
+}
+
+.messages {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 260px;
+    max-height: 440px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fbfcfe;
+}
+
+.empty-state {
+    margin: auto;
+    color: var(--muted);
+    text-align: center;
+}
+
+.message {
+    max-width: 82%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.message-user {
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.message-assistant {
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+    background: var(--assistant-bg);
+    color: var(--text);
+}
+
+.message-error {
+    align-self: flex-start;
+    border: 1px solid #fecdca;
+    background: #fff3f2;
+    color: var(--danger);
+}
+
+.message-meta {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.question-form {
+    display: grid;
+    gap: 12px;
+}
+
+.question-form textarea {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    color: var(--text);
+    line-height: 1.6;
+}
+
+.question-form textarea:focus {
+    outline: 3px solid rgba(37, 99, 235, 0.16);
+    border-color: var(--primary);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.form-actions button {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 14px;
+    background: var(--surface);
+}
+
+#send-button {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #ffffff;
+}
+
+#send-button:hover {
+    background: var(--primary-dark);
+}
+
+#send-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .app-shell {
+        width: min(100% - 20px, 860px);
+        margin: 20px auto;
+    }
+
+    .workspace {
+        padding: 18px;
+    }
+
+    .message {
+        max-width: 94%;
+    }
+
+    .form-actions {
+        justify-content: stretch;
+    }
+
+    .form-actions button {
+        flex: 1;
+    }
+}

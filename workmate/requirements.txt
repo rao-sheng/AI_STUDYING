@@ -8,3 +8,5 @@ python-dotenv==1.2.3
 
 # Development / testing
 pytest==9.1.1
+
+mcp[cli]>=2.0.0

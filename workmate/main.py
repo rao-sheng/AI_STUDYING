@@ -9,6 +9,10 @@ from tool_practice import run_agent
 from app.api.health import router as health_router
 from app.api.tasks import router as tasks_router
 from app.api.meta import router as meta_router
+
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -19,6 +23,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="WorkMate API",
     lifespan=lifespan,
+)
+
+STATIC_DIR=Path(__file__).resolve().parent /"static"
+app.mount(
+    "/static",
+    StaticFiles(directory=STATIC_DIR),
+    name="static",
 )
 
 app.include_router(health_router)
@@ -57,7 +68,7 @@ def answer_endpoint(body:AskResponse):
     return result
 
 @app.post("/agent/chat")
-def agent_chat(body:AskResponse):
+async def agent_chat(body:AskResponse):
     question=body.question.strip()
     if not question:
         raise HTTPException(
@@ -65,7 +76,7 @@ def agent_chat(body:AskResponse):
             detail="问题不能为空"
         )
     try:
-        answer=run_agent(
+        answer=await run_agent(
             question=question,
             knowledge_chunks=app.state.knowledge_chunks,
             max_rounds=3

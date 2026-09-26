@@ -17,7 +17,7 @@ history=get_messages(conversation_id)
 assert history==[
      {
         "role": "user",
-        "content": "我的项目是WorkMate，请记住这个名字。",
+        "content": "我的项目是WorkMate,请记住这个名字",
     },
     {
         "role": "assistant",

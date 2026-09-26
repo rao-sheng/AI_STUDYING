@@ -1,0 +1,29 @@
+[
+    {
+        "sku_id": "SKU-1001",
+        "name": "蓝牙降噪耳机",
+        "stock": 8,
+        "views": 1200,
+        "orders": 84,
+        "paid_orders": 63,
+        "revenue": 12537.0
+    },
+    {
+        "sku_id": "SKU-1002",
+        "name": "机械键盘",
+        "stock": 60,
+        "views": 700,
+        "orders": 42,
+        "paid_orders": 35,
+        "revenue": 10465.0
+    },
+    {
+        "sku_id": "SKU-1003",
+        "name": "不锈钢保温杯",
+        "stock": 3,
+        "views": 320,
+        "orders": 18,
+        "paid_orders": 12,
+        "revenue": 948.0
+    }
+]

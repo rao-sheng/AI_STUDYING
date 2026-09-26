@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkMate 商家运营助手</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <main class="app-shell">
+        <header class="page-header">
+            <p class="eyebrow">AI 商家工作台</p>
+            <h1>WorkMate 商家运营助手</h1>
+            <p class="subtitle">快速查询规则，分析商品经营数据。</p>
+        </header>
+
+        <section class="mode-switch" aria-label="功能模式">
+            <button class="mode-button is-active" type="button" data-mode="knowledge">
+                规则问答
+            </button>
+
+            <button class="mode-button" type="button" data-mode="operations">
+                运营分析
+            </button>
+        </section>
+
+        <section class="workspace">
+            <div class="mode-intro">
+                <p id="mode-label">规则问答</p>
+                <h2 id="mode-title">帮助你核对规则并回复买家</h2>
+                <p id="mode-description">
+                    基于商家知识库回答售后、商品和平台规则问题，并提供来源。
+                </p>
+            </div>
+
+            <div class="example-area">
+                <p>试试这样问：</p>
+                <div id="example-list" class="example-list">
+                    <button class="example-button" type="button">
+                        商品支持七天无理由退货吗？
+                    </button>
+                    <button class="example-button" type="button">
+                        库存不足时可以提现吗？
+                    </button>
+                </div>
+            </div>
+
+            <section id="messages" class="messages" aria-live="polite">
+                <p class="empty-state">
+                    输入一个问题，开始查询。
+                </p>
+            </section>
+
+            <form id="question-form" class="question-form">
+                <label class="sr-only" for="question-input">输入问题</label>
+
+                <textarea id="question-input" name="question" rows="3" maxlength="1000"
+                    placeholder="例如：SKU-1001 的经营情况怎么样，是否需要补货？" required></textarea>
+
+                <div class="form-actions">
+                    <button id="clear-button" type="button">清空记录</button>
+                    <button id="send-button" type="submit">发送问题</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+</body>
+
+</html>
