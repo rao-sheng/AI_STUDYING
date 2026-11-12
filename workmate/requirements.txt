@@ -5,8 +5,10 @@ uvicorn==0.52.4
 httpx==0.28.1
 pydantic==2.13.5
 python-dotenv==1.2.3
+SQLAlchemy==2.0.57
+redis==8.1.0
 
 # Development / testing
 pytest==9.1.1
 
-mcp[cli]>=2.0.0
+mcp[cli]==2.2.0

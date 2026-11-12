@@ -6,8 +6,9 @@ import httpx
 from pathlib import Path
 from dotenv import load_dotenv
 import sqlite3
+from sqlalchemy.exc import SQLAlchemyError
 from rag_practice import load_or_build_chunks,retrieve_chunks
-from  mcp_tool_client import call_mcp_tool
+from mcp_tool_client import ALLOWED_MCP_TOOLS, call_mcp_tool, discover_mcp_tools
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 tools=[
@@ -28,51 +29,6 @@ tools=[
             },
         },
     },
-   {
-    "type": "function",
-    "function": {
-        "name": "get_product_metrics",
-        "description": (
-            "查询指定商品的库存、浏览量、订单量、支付订单数"
-            "和转化率等经营指标。"
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "sku_id": {
-                    "type": "string",
-                    "description": "要查询的商品编号，例如 SKU-1001。",
-                },
-            },
-            "required": ["sku_id"],
-            "additionalProperties": False,
-        },
-    },
-   },
-    
-     {
-    "type": "function",
-    "function": {
-        "name": "get_low_stock_items",
-        "description": (
-            "查询库存小于等于指定阈值的商品。"
-            "适合回答低库存、补货优先级等问题。"
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "threshold": {
-                    "type": "integer",
-                    "description": "库存阈值，默认为 10。",
-                },
-            },
-            "required": [],
-            "additionalProperties": False,
-        },
-    },
-}
-    ,
-    
     {
         "type": "function",
         "function": {
@@ -98,7 +54,7 @@ tools=[
     
 ]
 
-def request_with_tools(messages:list[dict]) ->dict:
+def request_with_tools(messages:list[dict], available_tools: list[dict]) ->dict:
     api_key = (os.getenv("DEEPSEEK_API_KEY") or "").strip()
 
     if not api_key:
@@ -112,7 +68,7 @@ def request_with_tools(messages:list[dict]) ->dict:
         json={
             "model":"deepseek-flash",
             "messages":messages,
-            "tools":tools,
+            "tools":available_tools,
             "tool_choice":"auto",
             "stream":False
         },
@@ -138,7 +94,7 @@ async def execute_tool(tool_call:dict,knowledge_chunks:list[dict]) ->dict:
             "error":"缺少有效描述，本次未执行工具"
         }
     function_name=function.get("name")
-    if function_name not in ("list_pending_tasks","search_knowledge","get_low_stock_items","get_product_metrics"):
+    if function_name not in ("list_pending_tasks", "search_knowledge", *ALLOWED_MCP_TOOLS):
         return {
             "ok":False,
             "error":"不允许调用该工具，本次未执行工具"
@@ -213,7 +169,7 @@ async def execute_tool(tool_call:dict,knowledge_chunks:list[dict]) ->dict:
         try:
             tasks = list_pending_tasks()
             
-        except sqlite3.Error:
+        except (sqlite3.Error, SQLAlchemyError):
             return {
                 "ok": False,
                 "error": "查询任务失败，暂时无法获取任务列表。",
@@ -261,6 +217,23 @@ def search_knowledge(query:str,knowledge_chunks:list[dict]) ->list[dict]:
 
     return results
 
+def encode_tool_result(result: dict) -> str:
+    encoded = json.dumps(result, ensure_ascii=False)
+    if len(encoded) <= 12000:
+        return encoded
+    data = result.get("data")
+    if isinstance(data, list):
+        preview = []
+        for item in data:
+            if len(json.dumps(preview + [item], ensure_ascii=False)) > 11500:
+                break
+            preview.append(item)
+        return json.dumps({"ok": True, "data": preview, "total": len(data), "truncated": True},
+                          ensure_ascii=False)
+    return json.dumps({"ok": False, "error": "工具结果超出上下文预算，请缩小查询范围"},
+                      ensure_ascii=False)
+
+
 async def run_agent(question:str,knowledge_chunks:list[dict],max_rounds:int=3,) ->str:
 
     if max_rounds<=0:
@@ -286,25 +259,34 @@ async def run_agent(question:str,knowledge_chunks:list[dict],max_rounds:int=3,) 
             "content":question
         },
     ]
+    discovered = await discover_mcp_tools()
+    available_tools = tools + discovered
+    allowed_names = {item["function"]["name"] for item in available_tools}
     for round_index in range(max_rounds):
         print("模型请求轮数：",round_index+1)
         message = await asyncio.to_thread(
             request_with_tools,
             messages,
+            available_tools,
         )
-        tool_calls=message.get("tool_calls") or []
+        tool_calls = (message.get("tool_calls") or [])[:4]
         if not tool_calls:
             return message.get("content") or "模型未返回有效回答"
         if round_index==max_rounds-1:
             return "已达模型上限次数，任务未完成"
-        messages.append(message)
+        messages.append({**message, "tool_calls": tool_calls})
         for tool_call in tool_calls:
-            result =await execute_tool(tool_call, knowledge_chunks)
+            function = tool_call.get("function")
+            name = function.get("name") if isinstance(function, dict) else None
+            if isinstance(name, str) and name in allowed_names:
+                result = await execute_tool(tool_call, knowledge_chunks)
+            else:
+                result = {"ok": False, "error": "当前未发现或未授权此工具"}
 
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call["id"],
-                "content": json.dumps(result, ensure_ascii=False),
+                "content": encode_tool_result(result),
             })
             
     return "未获得最终答案"
@@ -320,4 +302,4 @@ if __name__ == "__main__":
     )
     )
     print("最终结果：")
-    print(answer)         
+    print(answer)

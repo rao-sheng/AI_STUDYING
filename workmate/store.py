@@ -1,231 +1,196 @@
-import sqlite3
+import os
+from functools import lru_cache
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "practice.db"
+from sqlalchemy import CheckConstraint, Index, Text, URL, create_engine, delete, select, update
+from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.pool import NullPool
+from sqlalchemy.schema import CreateIndex
 
-def init_db():
-    conn = get_connection()
 
-    try:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY,
-                title TEXT NOT NULL,
-                description TEXT,
-                status TEXT NOT NULL DEFAULT 'todo'
-                    CHECK (status IN ('todo', 'in_progress', 'done')),
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        """)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY,
-                conversation_id TEXT NOT NULL,
-                role TEXT NOT NULL
-                    CHECK (role IN ('user', 'assistant')),
-                content TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        conn.commit()
-    finally:
-        conn.close()
+class Base(DeclarativeBase):
+    pass
 
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
-def list_pending_tasks() ->list[dict]:
-    conn=get_connection()
-    try:
-        cursor=conn.execute(
-            """
-            SELECT id,title,status
-            FROM tasks
-            WHERE status !=?
-            ORDER BY id
-""",
-            ("done",),
-        )
-        rows=cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        conn.close()
-        
+class Task(Base):
+    __tablename__ = "tasks"
+    __table_args__ = (CheckConstraint("status IN ('todo', 'in_progress', 'done')"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default="todo")
+    created_at: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[str] = mapped_column(Text)
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    __table_args__ = (CheckConstraint("role IN ('user', 'assistant')"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(Text)
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(Text)
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    sku_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    stock: Mapped[int] = mapped_column(index=True)
+    views: Mapped[int]
+    orders: Mapped[int]
+    paid_orders: Mapped[int]
+    revenue: Mapped[float]
+
+
+message_history_index = Index(
+    "ix_messages_conversation_id_id", Message.conversation_id, Message.id
+)
+
+DB_PATH = Path(os.getenv("WORKMATE_DB_PATH", str(Path(__file__).resolve().parent / "practice.db")))
+
+
+@lru_cache
+def get_engine(db_path: Path) -> Engine:
+    return create_engine(
+        URL.create("sqlite+pysqlite", database=str(db_path)),
+        poolclass=NullPool,
+    )
+
+
+@lru_cache
+def session_factory(db_path: Path) -> sessionmaker:
+    return sessionmaker(bind=get_engine(db_path))
+
+
+def init_db() -> None:
+    engine = get_engine(DB_PATH)
+    with engine.begin() as connection:
+        Base.metadata.create_all(connection)
+        # create_all skips existing tables, including their newly declared indexes.
+        connection.execute(CreateIndex(message_history_index, if_not_exists=True))
+
+
+def task_dict(task: Task) -> dict:
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "status": task.status,
+        "created_at": task.created_at,
+        "updated_at": task.updated_at,
+    }
+
+
+def list_pending_tasks() -> list[dict]:
+    statement = select(Task.id, Task.title, Task.status).where(Task.status != "done")
+    with session_factory(DB_PATH)() as session:
+        return [
+            dict(row)
+            for row in session.execute(statement.order_by(Task.id)).mappings()
+        ]
+
 
 def get_task(task_id: int) -> dict | None:
-    conn = get_connection()
+    with session_factory(DB_PATH)() as session:
+        task = session.get(Task, task_id)
+        return task_dict(task) if task is not None else None
 
-    try:
-        cursor = conn.execute(
-            "SELECT * FROM tasks WHERE id = ?",
-            (task_id,),
-        )
 
-        row = cursor.fetchone()
-
-        if row is None:
-            return None
-
-        return dict(row)
-
-    finally:
-        conn.close()
-
-def create_task(title, description, task_status, now1, now2):
-    conn=get_connection()
-    try:
-        cursor=conn.execute(
-            """
-    INSERT INTO tasks (
-        title, description, status, created_at, updated_at
+def create_task(title, description, task_status, now1, now2) -> dict:
+    task = Task(
+        title=title,
+        description=description,
+        status=task_status,
+        created_at=now1,
+        updated_at=now2,
     )
-    VALUES (?, ?, ?, ?, ?)
-    """,
-    (title, description, task_status, now1, now2),
-        )
-        new_id=cursor.lastrowid
-        conn.commit()
-    except sqlite3.Error:
-        conn.rollback()
-        raise   
-    finally:
-        conn.close()
-    return get_task(new_id)#type:ignore
+    with session_factory(DB_PATH).begin() as session:
+        session.add(task)
+        session.flush()
+        return task_dict(task)
 
-def list_tasks(task_status:str|None=None) ->list[dict]:
-    conn=get_connection()
-    try:
-        if task_status is None:
-            cursor = conn.execute(
-                "SELECT * FROM tasks ORDER BY id"
+
+def list_tasks(task_status: str | None = None) -> list[dict]:
+    statement = select(Task).order_by(Task.id)
+    if task_status is not None:
+        statement = statement.where(Task.status == task_status)
+    with session_factory(DB_PATH)() as session:
+        return [task_dict(task) for task in session.scalars(statement)]
+
+
+def update_task(task_id: int, update_data: dict, updated_at: str) -> dict | None:
+    values = {
+        field: update_data[field]
+        for field in ("title", "description", "status")
+        if field in update_data
+    }
+    statement = (
+        update(Task)
+        .where(Task.id == task_id)
+        .values(**values, updated_at=updated_at)
+        .returning(Task)
+    )
+    with session_factory(DB_PATH).begin() as session:
+        task = session.scalars(statement).one_or_none()
+        return task_dict(task) if task is not None else None
+
+
+def delete_task(task_id: int) -> bool:
+    statement = delete(Task).where(Task.id == task_id)
+    with session_factory(DB_PATH).begin() as session:
+        return session.execute(statement).rowcount > 0
+
+
+def get_messages(conversation_id: str) -> list[dict]:
+    statement = (
+        select(Message.role, Message.content)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.id)
+    )
+    with session_factory(DB_PATH)() as session:
+        return [dict(row) for row in session.execute(statement).mappings()]
+
+
+def save_message(conversation_id: str, role: str, content: str, created_at: str) -> None:
+    with session_factory(DB_PATH).begin() as session:
+        session.add(
+            Message(
+                conversation_id=conversation_id,
+                role=role,
+                content=content,
+                created_at=created_at,
             )
-        else:
-            cursor = conn.execute(
-                "SELECT * FROM tasks WHERE status = ? ORDER BY id",
-                (task_status,),
-            )
-
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        conn.close()
-
-def update_task(
-    task_id: int,
-    update_data: dict,
-    updated_at: str,
-) -> dict | None:
-    conn = get_connection()
-    try:
-        fields = []
-        values = []
-
-        for field_name in ("title", "description", "status"):
-            if field_name in update_data:
-                fields.append(f"{field_name} = ?")
-                values.append(update_data[field_name])
-
-        fields.append("updated_at = ?")
-        values.append(updated_at)
-        values.append(task_id)
-        #会转成很多带有？的等式，示例：status=?
-        cursor = conn.execute(
-            f"""
-            UPDATE tasks
-            SET {", ".join(fields)} 
-            WHERE id = ?
-            """,
-            #tuple转成元组
-            tuple(values),
         )
 
-        if cursor.rowcount == 0:
-            return None
 
-        conn.commit()
-
-        row = conn.execute(
-            "SELECT * FROM tasks WHERE id = ?",
-            (task_id,),
-        ).fetchone()
-
-        return dict(row)
-    finally:
-        conn.close()
-
-def delete_task(task_id:int) ->bool:
-    conn=get_connection()
-    try:
-        cursor=conn.execute(
-            "DELETE FROM tasks WHERE id=?",
-            (task_id,),
+def save_turn(conversation_id: str, question: str, answer: str, created_at: str) -> None:
+    with session_factory(DB_PATH).begin() as session:
+        session.add_all(
+            [
+                Message(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=question,
+                    created_at=created_at,
+                ),
+                Message(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=answer,
+                    created_at=created_at,
+                ),
+            ]
         )
-        conn.commit()
-        return cursor.rowcount>0
-    finally:
-        conn.close()
 
-def get_messages(conversation_id:str) ->list[dict]:
-    conn=get_connection()
-    try:
-        cursor=conn.execute(
-            "SELECT role,content FROM messages WHERE conversation_id=? ORDER BY id",
-            (conversation_id,),
-        )
-        rows=cursor.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        conn.close()
 
-def save_message(
-        conversation_id:str,
-        role:str,
-        content:str,
-        created_at:str
-) ->None:
-    conn=get_connection()
-    try:
-        conn.execute(
-            """
-INSERT INTO messages(conversation_id,role,content,created_at)
- VALUES(?,?,?,?)
-""",
-       (conversation_id,role,content,created_at)
-        )
-        conn.commit()
-    except sqlite3.Error:
-            conn.rollback()
-            raise 
-    finally:
-        conn.close()
-
-def save_turn(
-        conversation_id:str,
-        question:str,
-        answer:str,
-        created_at:str,
-) ->None:
-    conn=get_connection()
-    try:
-        sql="""
-        INSERT INTO messages(
-        conversation_id,role,content,created_at)
-        VALUES(?,?,?,?)
-"""
-        conn.execute(
-        sql,(conversation_id,"user",question,created_at)
-    )
-        conn.execute(
-        sql,(conversation_id,"assistant",answer,created_at)
-    )
-        conn.commit()
-    except sqlite3.Error:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+def seed_products(products: list[dict]) -> None:
+    with session_factory(DB_PATH).begin() as session:
+        if products:
+            session.execute(insert(Product).on_conflict_do_nothing(index_elements=["sku_id"]), products)
